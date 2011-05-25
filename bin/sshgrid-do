@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+
+=pod
+
+=head1 NAME
+
+sshgrid-do - Run a list of commands on an SSH crid 
+
+=head1 SYNOPSIS
+
+	$ sshgrid-do -h hosts -c commands.sh
+
+Options:
+
+	-h	--hosts-file		Filename pointing to list of hostnames to use for processing.
+	-o	--commands-file		Filename pointing to list of commands to be executed
+
+	-h	--help			Display short help message
+		--man			Display manpage
+
+
+=head1 DESCRIPTION
+
+=head1 AUTHOR
+
+Stefan Seemayer <seemayer@in.tum.de>
+
+=cut
+
+use strict;
+use warnings;
+use diagnostics;
+
+use Getopt::Long;
+use Pod::Usage;
+
+my ($help, $man, $hosts_file, $commands_file);
+
+
+GetOptions(	"hosts-file|h=s"	=> \$hosts_file,
+		"commands-file|c=s"	=> \$commands_file,
+
+		"help|h|?"		=> \$help,
+		"man"			=> \$man ) or pod2usage(2);
+
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+if(not $hostsfile) {
+	print STDERR "Must provide a hosts filename!\n\n";
+	pod2usage(2);
+}
+
+if(not $commandsfile) {
+	print STDERR "Must provide a commands filename!\n\n";
+	pod2usage(2);
+}
+
