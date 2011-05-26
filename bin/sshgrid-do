@@ -4,7 +4,7 @@
 
 =head1 NAME
 
-sshgrid-do - Run a list of commands on an SSH crid 
+sshgrid-do - Run a list of commands on an SSH grid 
 
 =head1 SYNOPSIS
 
@@ -13,9 +13,11 @@ sshgrid-do - Run a list of commands on an SSH crid
 Options:
 
 	-h	--hosts-file		Filename pointing to list of hostnames to use for processing.
-	-o	--commands-file		Filename pointing to list of commands to be executed
+	-c	--commands-file		Filename pointing to list of commands to be executed
 
-	-h	--help			Display short help message
+	-b	--base-directory	Base directory on hosts for SSHGrid management. Default: ~/.sshgrid
+
+	-?	--help			Display short help message
 		--man			Display manpage
 
 
@@ -34,25 +36,47 @@ use diagnostics;
 use Getopt::Long;
 use Pod::Usage;
 
+use SSHGrid;
+
 my ($help, $man, $hosts_file, $commands_file);
+
+my $base_directory = "~/.sshgrid";
 
 
 GetOptions(	"hosts-file|h=s"	=> \$hosts_file,
 		"commands-file|c=s"	=> \$commands_file,
 
-		"help|h|?"		=> \$help,
+		"base-directory|b=s"	=> \$base_directory,
+
+		"help|?"		=> \$help,
 		"man"			=> \$man ) or pod2usage(2);
 
 pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 
-if(not $hostsfile) {
+
+my $sshg = SSHGrid->new(
+	HostsSource => {FileSource => $hosts_file},
+	RemoteRoot => $base_directory,
+);
+
+
+my $subdir = $sshg->get_new_subdir();
+
+$sshg->upload(
+	Filenames 	=> [$commands_file],
+	Subdir		=> $subdir,
+);
+
+
+if(not $hosts_file) {
 	print STDERR "Must provide a hosts filename!\n\n";
 	pod2usage(2);
 }
 
-if(not $commandsfile) {
+if(not $commands_file) {
 	print STDERR "Must provide a commands filename!\n\n";
 	pod2usage(2);
 }
+
 
