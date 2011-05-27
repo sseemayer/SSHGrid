@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# worker script for SSHGrid
+queuefile=$1
+hostnumber=$2
+
+function get_next_task {
+	(
+		# get exclusive access to queuefile
+		flock 100
+
+		# get first line in queuefile
+		task=$(head -n1 $queuefile);
+		
+		# delete first line in queuefile
+		sed -i '1d' $queuefile
+		
+		
+		echo $task
+
+	) 100<$queuefile
+}
+
+function process_task {
+	next_task=$( echo $next_task | sed -e "s/\$hostnumber/$hostnumber/g" )
+}
+
+next_task=$(get_next_task)
+while [ "$next_task" != "" ]; do
+
+	echo "Executing: '$next_task'"
+
+	process_task
+	bash -c "$next_task"
+
+	next_task=$(get_next_task)
+done
+
+
+
+# vim filetype=bash

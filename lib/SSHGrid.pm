@@ -84,7 +84,7 @@ sub upload {
 				Subdir => $pars->{Subdir},
 				RemoteRoot => $pars->{RemoteRoot});
 
-	$self->remote_copy(join(" ", @{$pars->{Filenames}}), "$firsthost:$pars->{RemoteRoot}/$pars->{Subdir}/" );
+	$self->remote_copy($pars->{Filenames}, "$firsthost:$pars->{RemoteRoot}/$pars->{Subdir}/" );
 	
 }
 
@@ -115,18 +115,40 @@ sub remote_mkdirs {
 
 sub remote_copy {
 	my ($self, $from, $to) = @_;
-	return system('scp', $from, $to);
+	return system('scp', @$from, $to);
 }
 
 sub remote_command {
-	my ($self,$hostname,$cmd) = @_;
-	print STDERR "$cmd\n";
-	return system('ssh', $hostname, "bash -c '$cmd'");	
+	my ($self,$hostname,$cmd,$async) = @_;
+	print STDERR "on $hostname: '$cmd'\n";
+
+	if($async) {
+		open(SSH, "ssh $hostname bash -c '$cmd' |") or die("Coult not run ssh: $!");
+		close(SSH);
+	} else {
+		return system('ssh', $hostname, "bash -c '$cmd'");	
+	}
 }
 
 sub remote_commands {
 	my ($self,$hostname,$cmds) = @_;
 	return $self->remote_command($hostname, join(";", @$cmds));
+}
+
+sub remote_all_command {
+	my ($self,$cmd) = @_;
+
+	my $hosts = $self->hosts;
+	die "No hosts found!" unless $hosts;
+
+	for my $host (@$hosts) {
+		$self->remote_command($host,$cmd);	
+	}
+}
+
+sub remote_all_commands {
+	my ($self,$cmds) = @_;
+	return $self->remote_all_command(join(";", @$cmds));
 }
 
 sub _load_parameters {

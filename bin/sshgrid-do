@@ -16,6 +16,7 @@ Options:
 	-c	--commands-file		Filename pointing to list of commands to be executed
 
 	-b	--base-directory	Base directory on hosts for SSHGrid management. Default: ~/.sshgrid
+	-w	--worker-file		Filename for the worker script to run on the cluster nodes
 
 	-?	--help			Display short help message
 		--man			Display manpage
@@ -35,25 +36,37 @@ use diagnostics;
 
 use Getopt::Long;
 use Pod::Usage;
+use File::Basename;
 
 use SSHGrid;
 
 my ($help, $man, $hosts_file, $commands_file);
 
 my $base_directory = "~/.sshgrid";
-
+my $worker_file = (fileparse(__FILE__))[1] . "../scripts/sshgrid-worker";
 
 GetOptions(	"hosts-file|h=s"	=> \$hosts_file,
 		"commands-file|c=s"	=> \$commands_file,
 
 		"base-directory|b=s"	=> \$base_directory,
+		"worker-file|w=s"	=> \$worker_file,
 
 		"help|?"		=> \$help,
-		"man"			=> \$man ) or pod2usage(2);
+		"man"			=> \$man,
+) or pod2usage(2);
 
 pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 
+unless($hosts_file) {
+	print STDERR "Must provide a hosts file!\n\n";
+	pod2usage(2);
+}
+
+unless($commands_file) {
+	print STDERR "Must provide a commands file!\n\n";
+	pod2usage(2);
+}
 
 my $sshg = SSHGrid->new(
 	HostsSource => {FileSource => $hosts_file},
@@ -63,20 +76,22 @@ my $sshg = SSHGrid->new(
 
 my $subdir = $sshg->get_new_subdir();
 
+
+# install sshgrid system
 $sshg->upload(
-	Filenames 	=> [$commands_file],
+	Filenames 	=> [$commands_file, $worker_file],
 	Subdir		=> $subdir,
 );
 
+# launch worker scripts on all hosts
+my $worker_name = (fileparse($worker_file))[0];
+my $commands_name = (fileparse($commands_file))[0];
+my $workdir = "$base_directory/$subdir";
+my $hosts = $sshg->hosts;
+my $hostno = 0;
+for my $host (@$hosts) {
 
-if(not $hosts_file) {
-	print STDERR "Must provide a hosts filename!\n\n";
-	pod2usage(2);
+	$sshg->remote_command($host, "( cd $workdir; chmod +x $worker_name; ./$worker_name $commands_name $hostno  2>&1 > host-$hostno.log) &", 1);
+
+	$hostno++;
 }
-
-if(not $commands_file) {
-	print STDERR "Must provide a commands filename!\n\n";
-	pod2usage(2);
-}
-
-
