@@ -91,7 +91,7 @@ my $hosts = $sshg->hosts;
 my $hostno = 0;
 for my $host (@$hosts) {
 
-	$sshg->remote_command($host, "( cd $workdir; chmod +x $worker_name; ./$worker_name $commands_name $hostno  2>&1 > host-$hostno.log) &", 1);
+	$sshg->remote_command($host, "( cd $workdir; chmod +x $worker_name; ./$worker_name $commands_name $hostno  2>&1 > host-$hostno.log)", 1);
 
 	$hostno++;
 }

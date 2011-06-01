@@ -123,8 +123,9 @@ sub remote_command {
 	print STDERR "on $hostname: '$cmd'\n";
 
 	if($async) {
-		open(SSH, "ssh $hostname bash -c '$cmd' |") or die("Coult not run ssh: $!");
-		close(SSH);
+		my $cmdline = "ssh $hostname \"nohup bash -c '$cmd'\"";
+		print STDERR "$cmdline\n";
+		system("( $cmdline ) &"); #or die("Could not run ssh: $!");
 	} else {
 		return system('ssh', $hostname, "bash -c '$cmd'");	
 	}
