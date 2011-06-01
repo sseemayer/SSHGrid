@@ -2,7 +2,8 @@
 
 # worker script for SSHGrid
 queuefile=$1
-hostnumber=$2
+lockfile=$2
+hostnumber=$3
 
 function get_next_task {
 	(
@@ -18,17 +19,19 @@ function get_next_task {
 		
 		echo $task
 
-	) 100<$queuefile
+	) 100>$lockfile
 }
 
 function process_task {
 	next_task=$( echo $next_task | sed -e "s/\$hostnumber/$hostnumber/g" )
 }
 
+echo -e "`date`\tStarting"
+
 next_task=$(get_next_task)
 while [ "$next_task" != "" ]; do
 
-	echo "Executing: '$next_task'"
+	echo -e "`date`\tExecuting '$next_task'"
 
 	process_task
 	bash -c "$next_task"
@@ -36,6 +39,6 @@ while [ "$next_task" != "" ]; do
 	next_task=$(get_next_task)
 done
 
-
+echo -e "`date`\tFinished."
 
 # vim filetype=bash
