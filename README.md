@@ -9,9 +9,7 @@ Requirements
 ------------
 
 Requirements for the master (i.e. your machine)
-* `perl`
-* `bash`
-* `ssh`, `scp`
+* `perl`, `bash`, `ssh`, `scp`
 * no root access!
 
 Requirements for the compute nodes
