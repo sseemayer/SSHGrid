@@ -22,13 +22,24 @@ function get_next_task {
 	) 100>$lockfile
 }
 
-function process_task {
-	next_task=$( echo $next_task | sed -e "s/\$hostnumber/$hostnumber/g" )
-}
 
 function log {
 	timestamp=`echo -e "\`date\` ($hostnumber)\t"`
 	echo "${timestamp}$*"
+}
+
+function execute_task {
+
+	task=$*
+
+	log "Executing '$task'"
+
+	process_task
+	bash -c "$task"
+}
+
+function process_task {
+	task=$( echo $task | sed -e "s/\$hostnumber/$hostnumber/g" )
 }
 
 log "Started worker on `hostname`"
@@ -36,10 +47,14 @@ log "Started worker on `hostname`"
 next_task=$(get_next_task)
 while [ "$next_task" != "" ]; do
 
-	log "Executing '$next_task'"
-
-	process_task
-	bash -c "$next_task"
+	# do we have a comment line?
+	if [[ ${next_task:0:1} != "#" ]]; then
+		# no, just execute the task
+		execute_task $next_task
+	else
+		# yes, ignore comment
+		log "Ignored comment $next_task"
+	fi
 
 	next_task=$(get_next_task)
 done
