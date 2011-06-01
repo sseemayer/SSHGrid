@@ -26,12 +26,17 @@ function process_task {
 	next_task=$( echo $next_task | sed -e "s/\$hostnumber/$hostnumber/g" )
 }
 
-echo -e "`date`\tStarting"
+function log {
+	timestamp=`echo -e "\`date\` ($hostnumber)\t"`
+	echo "${timestamp}$*"
+}
+
+log "Started worker on `hostname`"
 
 next_task=$(get_next_task)
 while [ "$next_task" != "" ]; do
 
-	echo -e "`date`\tExecuting '$next_task'"
+	log "Executing '$next_task'"
 
 	process_task
 	bash -c "$next_task"
@@ -39,6 +44,7 @@ while [ "$next_task" != "" ]; do
 	next_task=$(get_next_task)
 done
 
-echo -e "`date`\tFinished."
+
+log "Finished."
 
 # vim filetype=bash
