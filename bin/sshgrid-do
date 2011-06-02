@@ -24,6 +24,37 @@ Options:
 
 =head1 DESCRIPTION
 
+sshgrid-do will take a hosts and commands file, copy the commands file and a worker script to the first host 
+in the hosts list and then run the worker script in parallel on all hosts. 
+
+=head2 Hosts files
+
+Host files are lists of hostnames (one per file) that can be SSHed to from the machine running sshgrid-do. 
+You may optionally specify a username like in a call to SSH:
+
+	johndoe@node1.host.org
+	jdoe@node2.host.org
+	doejohn@node3.host.org
+	node4.host.org
+
+=head2 Command files
+
+Lines in command files can contain any command that could be run in a bash command line, but processing of lines is
+not deterministic - The worker scripts running on the cluster nodes will remove the topmost line of the script and
+execute it, taking the next line as soon as they are finished, and so on, until the command file is empty.
+
+Comments lines are allowed and are denoted by a # character as the _first_ character in the line.
+
+=head1 EXAMPLES
+
+Check the share/SSHGrid/examples/ directory that came in your SSHGrid distribution for sample command files and other goodies.
+
+=head1 BUGS
+
+Highly likely, and SSHGrid is still feature-incomplete, so check the SSHGrid issue tracker to report problems:
+
+https://github.com/sseemayer/SSHGrid/issues
+
 =head1 AUTHOR
 
 Stefan Seemayer <seemayer@in.tum.de>
