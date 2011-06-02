@@ -1,6 +1,6 @@
 =pod
 
-=head1 TITLE
+=head1 NAME
 
 SSHGrid.pm - Poor-mans grid computing via SSH
 
@@ -24,6 +24,9 @@ use diagnostics;
 
 use Cwd;
 use IPC::Open3;
+
+use vars qw($VERSION);
+$VERSION = '0.01';
 
 sub new {
 	my $type = shift;

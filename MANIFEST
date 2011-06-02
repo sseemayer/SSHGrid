@@ -1,0 +1,10 @@
+bin/sshgrid-do
+Build.PL
+dev.sh
+lib/SSHGrid.pm
+MANIFEST			This list of files
+MANIFEST.SKIP
+META.yml
+README.md
+share/SSHGrid/examples/command_files/hello_world.sh
+share/SSHGrid/node-bin/sshgrid-worker

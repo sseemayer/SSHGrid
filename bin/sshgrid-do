@@ -43,7 +43,7 @@ use SSHGrid;
 my ($help, $man, $hosts_file, $commands_file);
 
 my $base_directory = "~/.sshgrid";
-my $worker_file = (fileparse(__FILE__))[1] . "../scripts/sshgrid-worker";
+my $worker_file = (fileparse(__FILE__))[1] . "../share/SSHGrid/node-bin/sshgrid-worker";
 
 GetOptions(	"hosts-file|h=s"	=> \$hosts_file,
 		"commands-file|c=s"	=> \$commands_file,
