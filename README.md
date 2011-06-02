@@ -22,7 +22,8 @@ Requirements for the compute nodes:
 Running it
 ----------
 
-Download the current version, extract and run in a commandline:
+SSHGrid can be run without prior installation using the `dev.sh` shell script that will set up your shell correctly. 
+Just download the current version, extract and run in a commandline:
 
 	$ cd SSHGrid/
 	$ . dev.sh
@@ -31,7 +32,12 @@ Download the current version, extract and run in a commandline:
 Installation
 ------------
 
-Currently, no installation method is provided, but that will change.
+If you have root priviliges on your current system, you can choose to install SSHGrid. Installation is currently 
+provided by [Module::Build](http://search.cpan.org/perldoc?Module::Build) - after downloading and extraction, run:
+
+	$ perl Build.PL
+	$ ./Build
+	$ sudo ./Build install
 
 Documentation
 -------------
