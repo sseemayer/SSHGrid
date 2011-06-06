@@ -127,7 +127,7 @@ function barrier_wait {
 
 barrier_setup
 
-log "Started worker on `hostname`"
+log "Started worker on `hostname`, PID $$"
 
 next_task=$(get_next_task)
 while [ $? != "0" ]; do
