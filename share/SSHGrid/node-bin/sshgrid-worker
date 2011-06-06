@@ -4,6 +4,7 @@
 queuefile=$1
 lockfile=$2
 hostnumber=$3
+hostcount=$4
 
 function get_next_task {
 	(
@@ -16,7 +17,6 @@ function get_next_task {
 		# delete first line in queuefile
 		sed -i '1d' $queuefile
 		
-		
 		echo $task
 
 	) 100>$lockfile
@@ -24,7 +24,7 @@ function get_next_task {
 
 
 function log {
-	timestamp=`echo -e "\`date\` ($hostnumber)\t"`
+	timestamp=`echo -e "\`date\` ($hostnumber/$hostcount)\t"`
 	echo "${timestamp}$*"
 }
 
@@ -35,11 +35,19 @@ function execute_task {
 	log "Executing '$task'"
 
 	process_task
-	bash -c "$task"
+	bash -c "$task" || log "WARNING: Failed with exit code $?"
 }
 
 function process_task {
 	task=$( echo $task | sed -e "s/\$hostnumber/$hostnumber/g" )
+}
+
+function wait_barrier {
+
+}
+
+function barrier_passed {
+
 }
 
 log "Started worker on `hostname`"
@@ -47,12 +55,17 @@ log "Started worker on `hostname`"
 next_task=$(get_next_task)
 while [ "$next_task" != "" ]; do
 
-	# do we have a comment line?
+	# determine what line we encountered
 	if [[ ${next_task:0:1} != "#" ]]; then
-		# no, just execute the task
+		# task line, just execute the task
 		execute_task $next_task
+
+	elif [[ ${next_task:0:3} == "#%B" ]]; then
+		# barrier, wait for other workers
+		log "Encountered barrier"
+		wait_barrier
 	else
-		# yes, ignore comment
+		# comment line, ignore it
 		log "Ignored comment $next_task"
 	fi
 

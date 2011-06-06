@@ -189,6 +189,14 @@ sub hosts {
 	die "Could not find a valid HostsSource!";
 }
 
+sub host_count {
+	my ($self) = @_;
+
+	my $hosts = $self->hosts;
+
+	return scalar @$hosts;
+}
+
 sub _get_hosts_from_file {
 	my ($self) = @_;
 
