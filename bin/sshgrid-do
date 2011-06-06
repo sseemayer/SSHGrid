@@ -104,6 +104,11 @@ unless($commands_file) {
 	pod2usage(2);
 }
 
+unless(-f $worker_file) {
+	print STDERR "Cannot locate worker at $worker_file!\n\n";
+	pod2usage(2);
+}
+
 my $sshg = SSHGrid->new(
 	HostsSource => {FileSource => $hosts_file},
 	RemoteRoot => $base_directory,
