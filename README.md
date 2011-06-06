@@ -32,7 +32,9 @@ Just download the current version, extract and run in a commandline:
 Installation
 ------------
 
-If you have root priviliges on your current system, you can choose to install SSHGrid. Installation is currently 
+If you are a lucky Arch Linux user with root privileges, you can check out [SSHGrid on AUR](http://aur.archlinux.org/packages.php?ID=49616).
+
+For any other linux distribution, if you have root priviliges on your current system, you can install SSHGrid via the tarball. Installation is currently 
 provided by [Module::Build](http://search.cpan.org/perldoc?Module::Build) - after downloading and extraction, run:
 
 	$ perl Build.PL
