@@ -18,7 +18,7 @@ Options:
 	-b	--base-directory	Base directory on hosts for SSHGrid management. Default: ~/.sshgrid
 	-w	--worker-file		Filename for the worker script to run on the cluster nodes
 
-	-H	--host-count		Restrict number of hosts to use from hosts file
+	-n	--num-hosts		Restrict number of hosts to use from hosts file
 
 	-?	--help			Display short help message
 		--man			Display manpage
@@ -78,13 +78,14 @@ my ($help, $man, $hosts_file, $commands_file, $host_count);
 my $base_directory = "~/.sshgrid";
 my $worker_file = (fileparse(__FILE__))[1] . "../share/SSHGrid/node-bin/sshgrid-worker";
 
-GetOptions(	"hosts-file|h=s"	=> \$hosts_file,
-		"commands-file|c=s"	=> \$commands_file,
+GetOptions(	
+		"h|hosts-file=s"	=> \$hosts_file,
+		"c|commands-file=s"	=> \$commands_file,
 
-		"base-directory|b=s"	=> \$base_directory,
-		"worker-file|w=s"	=> \$worker_file,
+		"b|base-directory=s"	=> \$base_directory,
+		"w|worker-file=s"	=> \$worker_file,
 
-		"host-count|H=i"	=> \$host_count,
+		"n|num-hosts=i"		=> \$host_count,
 
 		"help|?"		=> \$help,
 		"man"			=> \$man,

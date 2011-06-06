@@ -6,22 +6,29 @@ lockfile=$2
 hostnumber=$3
 hostcount=$4
 
+barrier_base=$lockfile.barrier
+barrier_cycle=1
+barrier_sleeptime=1
+
 function get_next_task {
 	(
 		# get exclusive access to queuefile
 		flock 100
+		
+		linecount=$(wc -l < $queuefile)
 
 		# get first line in queuefile
 		task=$(head -n1 $queuefile);
 		
-		# delete first line in queuefile
-		sed -i '1d' $queuefile
+		# remove first line, unless special line
+		[[ ${task:0:2} == "#%" ]] || sed -i '1d' $queuefile
 		
 		echo $task
 
+		return $linecount
+
 	) 100>$lockfile
 }
-
 
 function log {
 	timestamp=`echo -e "\`date\` ($hostnumber/$hostcount)\t"`
@@ -42,18 +49,88 @@ function process_task {
 	task=$( echo $task | sed -e "s/\$hostnumber/$hostnumber/g" )
 }
 
-function wait_barrier {
+function host_id {
+	echo -e "`hostname`\t$$"
+}
+
+function barrier_setup {
+
+	barrier_cycle=$(( ! $barrier_cycle ));
+	barrier=$barrier_base.$barrier_cycle
+
+	[ $hostnumber == 0 ] && rm -f $barrier
+	
+	#log "New barrier file is $barrier"
+}
+
+function barrier_remove {
+	(
+		# get exclusive access to queuefile
+		flock 100
+
+		# get first line in queuefile
+		task=$(head -n1 $queuefile);
+		
+		# delete first barrier line in queuefile
+		[[ ${task:0:3} == "#%B" ]] && sed -i '1d' $queuefile
+		
+		echo $task
+		
+		rm -f $barrier
+
+	) 100>$lockfile
 
 }
 
-function barrier_passed {
+function barrier_waiting {
+
+	[ -f $barrier ] || return 1
+	waitcount=$( (wc -l < $barrier) 2> /dev/null )
+	[[ $waitcount -lt $hostcount ]] || return 2
+	return 0
 
 }
+
+function barrier_wait {
+
+	log "Encountered $barrier"
+	
+	# wait until enough hosts queueing
+	queuecount=$( (wc -l < $barrier) 2>/dev/null )
+	queuecount=$(( $queuecount + 1)) 
+	if [[ $queuecount -ge $hostcount ]]; then
+
+		log "Unlocking $barrier"
+		barrier_remove
+
+	else 
+		log "Waiting on $barrier"
+
+		# queue on the barrier
+		host_id >> $barrier
+		waiting=0
+		while [ $waiting == "0" ]; do
+			sleep $barrier_sleeptime
+			barrier_waiting
+			waiting=$?
+		done
+
+	fi
+
+	log "Passed $barrier"
+
+	barrier_setup
+}
+
+
+# main worker script starts here
+
+barrier_setup
 
 log "Started worker on `hostname`"
 
 next_task=$(get_next_task)
-while [ "$next_task" != "" ]; do
+while [ $? != "0" ]; do
 
 	# determine what line we encountered
 	if [[ ${next_task:0:1} != "#" ]]; then
@@ -62,8 +139,7 @@ while [ "$next_task" != "" ]; do
 
 	elif [[ ${next_task:0:3} == "#%B" ]]; then
 		# barrier, wait for other workers
-		log "Encountered barrier"
-		wait_barrier
+		barrier_wait
 	else
 		# comment line, ignore it
 		log "Ignored comment $next_task"
@@ -72,7 +148,6 @@ while [ "$next_task" != "" ]; do
 	next_task=$(get_next_task)
 done
 
-
 log "Finished."
 
-# vim filetype=bash
+# vim:filetype=sh foldmethod=manual
