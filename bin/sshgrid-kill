@@ -30,16 +30,20 @@ to send a signal to all worker processes.
 
 =head2 Supported Signals
 
-The following signals can be specified by the -S option: SIGHUP, SIGINT, SIGQUIT, SIGABRT, SIGKILL, SIGTERM, SIGSTOP, SIGCONT
+The following signals can be specified by the -S option: 
+
+SIGHUP, SIGINT, SIGQUIT, SIGABRT, SIGKILL, SIGTERM, SIGSTOP, SIGCONT
 
 =head1 EXAMPLES
 
 All examples assume that the subdirectory for computation is stored in $SUBDIR. (e.g. SUBDIR=2011-01-01-12-00-00)
 
 Cancelling computation in all workers (by sending a SIGKILL):
+
 	sshgrid-kill -h hosts.txt -s $SUBDIR -s SIGKILL
 
 Suspending computation in all workers and then waking up:
+
 	sshgrid-kill -h hosts.txt -s $SUBDIR -s SIGSTOP
 	sshgrid-kill -h hosts.txt -s $SUBDIR -s SIGCONT
 
