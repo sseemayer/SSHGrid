@@ -24,7 +24,7 @@ Options:
 
 =head1 DESCRIPTION
 
-
+sshgrid-status will take a hosts file and the name of the subdirectory created by sshgrid-do to SSH into the first host in the hosts file and generate status information there.
 
 =head1 EXAMPLES
 
