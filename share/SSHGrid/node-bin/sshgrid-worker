@@ -1,15 +1,14 @@
 #!/bin/bash
 
 # worker script for SSHGrid
-queuefile=$1
-lockfile=$2
-hostnumber=$3
-hostcount=$4
 
-barrier_base=$lockfile.barrier
-barrier_cycle=1
-barrier_sleeptime=1
+# log - echo with host id and timestamp
+function log {
+	timestamp=`echo -e "\`date\` ($hostnumber/$hostcount)\t"`
+	echo "${timestamp}$*"
+}
 
+# pop next task from the queuefile
 function get_next_task {
 	(
 		# get exclusive access to queuefile
@@ -30,11 +29,7 @@ function get_next_task {
 	) 100>$lockfile
 }
 
-function log {
-	timestamp=`echo -e "\`date\` ($hostnumber/$hostcount)\t"`
-	echo "${timestamp}$*"
-}
-
+# run task
 function execute_task {
 
 	task=$*
@@ -45,14 +40,17 @@ function execute_task {
 	bash -c "$task" || log "WARNING: Failed with exit code $?"
 }
 
+# process task commandline to include more information
 function process_task {
 	task=$( echo $task | sed -e "s/\$hostnumber/$hostnumber/g" )
 }
 
+# identify worker canonically by hostname and pid
 function host_id {
-	echo -e "`hostname`\t$$"
+	echo -e "`hostname`\t$$\t$hostnumber"
 }
 
+# construct a new barrier
 function barrier_setup {
 
 	barrier_cycle=$(( ! $barrier_cycle ));
@@ -63,6 +61,7 @@ function barrier_setup {
 	#log "New barrier file is $barrier"
 }
 
+# cleanup a barrier
 function barrier_remove {
 	(
 		# get exclusive access to queuefile
@@ -82,6 +81,7 @@ function barrier_remove {
 
 }
 
+# evaluate barrier waiting condition
 function barrier_waiting {
 
 	[ -f $barrier ] || return 1
@@ -91,6 +91,7 @@ function barrier_waiting {
 
 }
 
+# wait on barrier
 function barrier_wait {
 
 	log "Encountered $barrier"
@@ -123,31 +124,95 @@ function barrier_wait {
 }
 
 
-# main worker script starts here
+# main worker function - run a queuefile
+function worker_run {
 
-barrier_setup
+	queuefile=$2
+	lockfile=$3
+	hostnumber=$4
+	hostcount=$5
+	idfile=$6
 
-log "Started worker on `hostname`, PID $$"
+	barrier_base=$lockfile.barrier
+	barrier_cycle=1
+	barrier_sleeptime=1
+	barrier_setup
 
-next_task=$(get_next_task)
-while [ $? != "0" ]; do
+	(
+		flock 200
+		host_id >> $idfile
+	) 200>$idfile
 
-	# determine what line we encountered
-	if [[ ${next_task:0:1} != "#" ]]; then
-		# task line, just execute the task
-		execute_task $next_task
-
-	elif [[ ${next_task:0:3} == "#%B" ]]; then
-		# barrier, wait for other workers
-		barrier_wait
-	else
-		# comment line, ignore it
-		log "Ignored comment $next_task"
-	fi
+	log "Started worker on `hostname`, PID $$"
 
 	next_task=$(get_next_task)
-done
+	while [ $? != "0" ]; do
 
-log "Finished."
+		# determine what line we encountered
+		if [[ ${next_task:0:1} != "#" ]]; then
+			# task line, just execute the task
+			execute_task $next_task
+
+		elif [[ ${next_task:0:3} == "#%B" ]]; then
+			# barrier, wait for other workers
+			barrier_wait
+		else
+			# comment line, ignore it
+			log "Ignored comment $next_task"
+		fi
+
+		next_task=$(get_next_task)
+	done
+
+	log "Finished."
+
+}
+
+
+function get_pid_status {
+	hn=$1
+	pr=$2
+	
+	ssh $hn "bash -c 'if [ -d /proc/$pr ]; then echo run; else echo term; fi'" || echo "unknown"
+}
+
+function get_log {
+	n=$1
+	tail -n1 host-$n.log
+}
+
+# determine status of worker
+function worker_status {
+	idfile=$2
+
+	
+	echo -e "#worker_number\thostname\tpid\tstatus\tlast_log";
+
+	while read -u 100 l; do
+		hostname=$(echo $l | cut -d" " -f1)
+		pid=$(echo $l | cut -d" " -f2)
+		number=$(echo $l | cut -d" " -f3)
+
+		stat=$(get_pid_status $hostname $pid)
+		lastlog=$(get_log $number)
+
+		echo -e "$number\t$hostname\t$pid\t$stat\t$lastlog"
+	done 100< $idfile | sort
+	
+}
+
+
+
+
+# first argument tells us what we should do
+do_what=$1
+if [[ $do_what == "run" ]]; then
+	worker_run $@
+elif [[ $do_what == "status" ]]; then
+	worker_status $@
+else 
+	echo UNKNOWN COMMAND: $do_what >&2
+fi
+
 
 # vim:filetype=sh foldmethod=manual

@@ -121,6 +121,28 @@ sub remote_copy {
 	return system('scp', @$from, $to);
 }
 
+sub remote_open {
+	my ($self,$hostname,$cmd) = @_;
+
+	my $cmdline = "ssh $hostname \"bash -c '$cmd'\"";
+	print STDERR "$cmdline\n";
+
+	my $out;
+	my $pid = open3(0,$out,0, $cmdline);
+
+	my $buf = "";
+	while(my $line = <$out>) {
+		$buf .= $line;
+	}
+
+	waitpid($pid, 0);
+	my $exitstatus = $? >> 8;
+	
+	$exitstatus == 0 or die("remote_open failed with exit code $exitstatus");
+
+	return $buf;
+}
+
 sub remote_command {
 	my ($self,$hostname,$cmd,$async) = @_;
 	print STDERR "on $hostname: '$cmd'\n";

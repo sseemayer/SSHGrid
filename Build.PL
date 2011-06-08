@@ -7,6 +7,7 @@ my $build = Module::Build->new(
 	share_files	=> {
 		'share/SSHGrid/node-bin/sshgrid-worker'			=> 'share/SSHGrid/node-bin/sshgrid-worker',
 		'share/SSHGrid/examples/command_files/hello_world.sh'	=> 'share/SSHGrid/examples/command_files/hello_world.sh',
+		'share/SSHGrid/examples/command_files/barriers.sh'	=> 'share/SSHGrid/examples/command_files/barriers.sh',
 	},
 
 	install_path	=> {

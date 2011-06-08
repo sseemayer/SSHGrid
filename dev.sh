@@ -14,3 +14,8 @@ popd  > /dev/null
 
 export PATH="$PATH:$SELF/bin"
 export PERL5LIB="$PERL5LIB:$SELF/lib"
+
+echo Configured \$PATH and \$PERL5LIB variables.
+echo
+echo To get started, run: sshgrid-do -?
+echo

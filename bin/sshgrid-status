@@ -1,0 +1,97 @@
+#!/usr/bin/perl
+
+=pod
+
+=head1 NAME
+
+sshgrid-status - Check status of the SSHGrid
+
+=head1 SYNOPSIS
+
+	$ sshgrid-status -h hosts-file -s "2011-01-01-12-00-00"
+
+Options:
+
+	-h	--hosts-file		Filename pointing to list of hostnames to use for processing.
+	-s	--subdirectory		Name of the subdirectory in the base directory for which to query status
+
+	-b	--base-directory	Base directory on hosts for SSHGrid management. Default: ~/.sshgrid
+	-w	--worker-file		Filename for the worker script running on the cluster nodes
+
+	-?	--help			Display short help message
+		--man			Display manpage
+
+
+=head1 DESCRIPTION
+
+
+
+=head1 EXAMPLES
+
+Check the share/SSHGrid/examples/ directory that came in your SSHGrid distribution for sample command files and other goodies.
+
+=head1 BUGS
+
+Highly likely, and SSHGrid is still feature-incomplete, so check the SSHGrid issue tracker to report problems:
+
+https://github.com/sseemayer/SSHGrid/issues
+
+=head1 AUTHOR
+
+Stefan Seemayer <seemayer@in.tum.de>
+
+=cut
+
+use strict;
+use warnings;
+use diagnostics;
+
+use Getopt::Long;
+use Pod::Usage;
+use File::Basename;
+
+use SSHGrid;
+
+my ($help, $man, $hosts_file, $subdirectory, $host_count);
+my $worker_file = "sshgrid-worker";
+my $base_directory = "~/.sshgrid";
+
+GetOptions(	
+		"h|hosts-file=s"	=> \$hosts_file,
+		"s|subdirectory=s"	=> \$subdirectory,
+
+		"b|base-directory=s"	=> \$base_directory,
+		"w|worker-file=s"	=> \$worker_file,
+
+		"help|?"		=> \$help,
+		"man"			=> \$man,
+) or pod2usage(2);
+
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+unless($hosts_file) {
+	print STDERR "Must provide a hosts file!\n\n";
+	pod2usage(2);
+}
+
+unless($subdirectory) {
+	print STDERR "Must provide a subdirectory!\n\n";
+	pod2usage(2);
+}
+
+my $sshg = SSHGrid->new(
+	HostsSource => {FileSource => $hosts_file},
+	RemoteRoot => $base_directory,
+);
+
+
+# launch worker scripts on all hosts
+my $worker_name = (fileparse($worker_file))[0];
+my $lock_name = "sshgrid.lock";
+my $id_name = "sshgrid.host_ids";
+my $workdir = "$base_directory/$subdirectory";
+my $hosts = $sshg->hosts;
+my $status = $sshg->remote_open($hosts->[0], "( cd $workdir; chmod +x $worker_name; ./$worker_name status $id_name 2>&1)");
+
+print $status;
