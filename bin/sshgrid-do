@@ -136,13 +136,12 @@ my $lock_name = "sshgrid.lock";
 my $id_name = "sshgrid.host_ids";
 my $workdir = "$base_directory/$subdir";
 my $hosts = $sshg->hosts;
-my $hostno = 0;
 
 
 print STDERR "\nLaunching worker processes...\n";
-for my $host (@$hosts) {
+for(my $hostno=0; $hostno < $host_count; $hostno++) {
+	my $host = $hosts->[$hostno];
 	$sshg->remote_command($host, "( cd $workdir; chmod +x $worker_name; ./$worker_name run $commands_name $lock_name $hostno $host_count $id_name 2>&1 > host-$hostno.log)", 1);
-	$hostno++;
 }
 
 print STDERR "Finished launching SSHGrid workers.\n\n";
