@@ -125,7 +125,7 @@ sub remote_open {
 	my ($self,$hostname,$cmd) = @_;
 
 	my $cmdline = "ssh $hostname \"bash -c '$cmd'\"";
-	print STDERR "$cmdline\n";
+	#print STDERR "$cmdline\n";
 
 	my $out;
 	my $pid = open3(0,$out,0, $cmdline);
@@ -145,11 +145,11 @@ sub remote_open {
 
 sub remote_command {
 	my ($self,$hostname,$cmd,$async) = @_;
-	print STDERR "on $hostname: '$cmd'\n";
+	#print STDERR "on $hostname: '$cmd'\n";
 
 	if($async) {
 		my $cmdline = "ssh $hostname \"nohup bash -c '$cmd'\"";
-		print STDERR "$cmdline\n";
+		#print STDERR "$cmdline\n";
 		system("( $cmdline ) &"); #or die("Could not run ssh: $!");
 	} else {
 		return system('ssh', $hostname, "bash -c '$cmd'");	

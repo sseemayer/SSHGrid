@@ -121,6 +121,8 @@ $host_count = $host_count ? ( $sshg_hc < $host_count ? $sshg_hc : $host_count ) 
 my $subdir = $sshg->get_new_subdir();
 
 
+print STDERR "Uploading SSHGrid base system...\n";
+
 # install sshgrid system
 $sshg->upload(
 	Filenames 	=> [$commands_file, $worker_file],
@@ -135,9 +137,14 @@ my $id_name = "sshgrid.host_ids";
 my $workdir = "$base_directory/$subdir";
 my $hosts = $sshg->hosts;
 my $hostno = 0;
+
+
+print STDERR "\nLaunching worker processes...\n";
 for my $host (@$hosts) {
-
 	$sshg->remote_command($host, "( cd $workdir; chmod +x $worker_name; ./$worker_name run $commands_name $lock_name $hostno $host_count $id_name 2>&1 > host-$hostno.log)", 1);
-
 	$hostno++;
 }
+
+print STDERR "Finished launching SSHGrid workers.\n\n";
+print STDERR "Your work subdir is:\t$subdir\n"; 
+print STDERR "Find results on $hosts->[0] at:\t$workdir\n\n";
