@@ -28,9 +28,20 @@ Options:
 sshgrid-kill will SSH into the first host in the provied hosts file, get the list of worker processes from the provided subdirectory and will use the hostname and pid information 
 to send a signal to all worker processes.
 
+=head2 Supported Signals
+
+The following signals can be specified by the -S option: SIGHUP, SIGINT, SIGQUIT, SIGABRT, SIGKILL, SIGTERM, SIGSTOP, SIGCONT
+
 =head1 EXAMPLES
 
-Check the share/SSHGrid/examples/ directory that came in your SSHGrid distribution for sample command files and other goodies.
+All examples assume that the subdirectory for computation is stored in $SUBDIR. (e.g. SUBDIR=2011-01-01-12-00-00)
+
+Cancelling computation in all workers (by sending a SIGKILL):
+	sshgrid-kill -h hosts.txt -s $SUBDIR -s SIGKILL
+
+Suspending computation in all workers and then waking up:
+	sshgrid-kill -h hosts.txt -s $SUBDIR -s SIGSTOP
+	sshgrid-kill -h hosts.txt -s $SUBDIR -s SIGCONT
 
 =head1 BUGS
 
@@ -63,15 +74,11 @@ my %valid_signals = (
 	SIGHUP => 1,
 	SIGINT => 2,
 	SIGQUIT	=> 3,
-	SIGILL 	=> 4, 	
 	SIGABRT	=> 6,	
-	SIGFPE 	=> 8,	
 	SIGKILL	=> 9, 	
-	SIGSEGV	=> 11, 	
-	SIGPIPE	=> 13, 	
-	SIGALRM	=> 14, 	
 	SIGTERM	=> 15, 	
 	SIGSTOP => 17,
+	SIGCONT => 19,
 );
 
 GetOptions(	
