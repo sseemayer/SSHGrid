@@ -141,7 +141,7 @@ function worker_run {
 	(
 		flock 200
 		host_id >> $idfile
-	) 200>$idfile
+	) 200>$idfile.lock
 
 	log "Started worker on `hostname`, PID $$"
 
@@ -202,6 +202,33 @@ function worker_status {
 }
 
 
+function send_kill {
+	host=$1
+	pid=$2
+	signal=$3
+
+	ssh $host "bash -c '[ -d /proc/$pid ] && kill $signal $pid && echo Killed $pid on $host with signal $signal'" || echo "could not kill $pid on $host"
+}
+
+function worker_kill {
+	idfile=$2
+	signal=$3
+
+	[[ $signal == "" ]] && signal="-SIGKILL"
+
+	( while read -u 100 l; do
+
+		hostname=$(echo $l | cut -d" " -f1)
+		pid=$(echo $l | cut -d" " -f2)
+		number=$(echo $l | cut -d" " -f3)
+		
+		stat=$(get_pid_status $hostname $pid)
+		
+		send_kill $hostname $pid $signal
+
+	done ) 100< $idfile
+
+}
 
 
 # first argument tells us what we should do
@@ -210,6 +237,8 @@ if [[ $do_what == "run" ]]; then
 	worker_run $@
 elif [[ $do_what == "status" ]]; then
 	worker_status $@
+elif [[ $do_what == "kill" ]]; then
+	worker_kill $@
 else 
 	echo UNKNOWN COMMAND: $do_what >&2
 fi
