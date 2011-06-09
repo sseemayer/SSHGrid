@@ -22,11 +22,13 @@ use strict;
 use warnings;
 use diagnostics;
 
+use SSHGrid::HostSet;
+
 use Cwd;
 use IPC::Open3;
 
 use vars qw($VERSION);
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 sub new {
 	my $type = shift;
@@ -37,16 +39,19 @@ sub new {
 		RemoteRoot 		=> '~/.sshgrid',
 		SubdirectoryFormat	=> '%t',
 	}, \@_);
-	
-	
 
 	my $self = {
-		hosts => 0,
+		hostsets => SSHGrid::HostSet->load_hostfile($parameters->{HostsSource}),
 		parameters => $parameters,
 		
 	};
 
 	bless $self, $type;
+}
+
+sub get_host_sets {
+	my ($self) = @_;
+	return $self->{hostsets};
 }
 
 sub get_new_subdir {
@@ -66,7 +71,7 @@ sub upload {
 
 	my $self = shift;
 	my $pars = $self->_load_parameters({
-			Hosts => 0,
+			Host => 0,
 			Filenames => 0,
 			Subdir => 0,
 			LocalRoot => getcwd(),
@@ -76,18 +81,13 @@ sub upload {
 	die "Must specify filenames to upload!" unless $pars->{Filenames};
 	die "Must specify subdir to upload to!" unless $pars->{Subdir};
 
-	my $hosts = $pars->{Hosts} ? $pars->{Hosts} : $self->hosts;
-	die "No hosts found!" unless $hosts;
-
-	my $firsthost = $hosts->[0];
-
 	# create destination folders
-	$self->remote_mkdirs(	Host => $firsthost, 
+	$self->remote_mkdirs(	Host => $pars->{Host}, 
 				Folders => ['.'],
 				Subdir => $pars->{Subdir},
 				RemoteRoot => $pars->{RemoteRoot});
 
-	$self->remote_copy($pars->{Filenames}, "$firsthost:$pars->{RemoteRoot}/$pars->{Subdir}/" );
+	$self->remote_copy($pars->{Filenames}, "$pars->{Host}:$pars->{RemoteRoot}/$pars->{Subdir}/" );
 	
 }
 
@@ -161,22 +161,6 @@ sub remote_commands {
 	return $self->remote_command($hostname, join(";", @$cmds));
 }
 
-sub remote_all_command {
-	my ($self,$cmd) = @_;
-
-	my $hosts = $self->hosts;
-	die "No hosts found!" unless $hosts;
-
-	for my $host (@$hosts) {
-		$self->remote_command($host,$cmd);	
-	}
-}
-
-sub remote_all_commands {
-	my ($self,$cmds) = @_;
-	return $self->remote_all_command(join(";", @$cmds));
-}
-
 sub _load_parameters {
 	my ($self, $defaults, $parameters) = @_;
 
@@ -200,39 +184,6 @@ sub _load_parameters {
 }
 
 
-sub hosts {
-	my ($self) = @_;
-
-	return $self->{hosts} if $self->{hosts};
-	die "No HostsSource defined!" unless defined $self->{parameters}->{HostsSource};
-
-	return $self->_get_hosts_from_file if $self->{parameters}->{HostsSource}->{FileSource};
-	
-	die "Could not find a valid HostsSource!";
-}
-
-sub host_count {
-	my ($self) = @_;
-
-	my $hosts = $self->hosts;
-
-	return scalar @$hosts;
-}
-
-sub _get_hosts_from_file {
-	my ($self) = @_;
-
-	my $filename = $self->{parameters}->{HostsSource}->{FileSource};
-
-	open(IN, "< $filename") or die("Could not open $filename for reading!");
-	my @hosts = <IN>;
-	map { chomp } @hosts;
-	close(IN);
-
-	$self->{hosts} = \@hosts;
-
-	return \@hosts;
-}
 
 =head1 BUGS
 

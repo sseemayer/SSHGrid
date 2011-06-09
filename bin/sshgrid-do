@@ -20,8 +20,6 @@ Options:
 	-b	--base-directory	Base directory on hosts for SSHGrid management. Default: ~/.sshgrid
 	-w	--worker-file		Filename for the worker script to run on the cluster nodes
 
-	-n	--num-hosts		Restrict number of hosts to use from hosts file
-
 	-?	--help			Display short help message
 		--man			Display manpage
 
@@ -33,13 +31,19 @@ in the hosts list and then run the worker script in parallel on all hosts.
 
 =head2 Hosts files
 
-Host files are lists of hostnames (one per file) that can be SSHed to from the machine running sshgrid-do. 
-You may optionally specify a username like in a call to SSH:
+Host files are lists of hostnames (one per file) that can be SSHed to from the machine running sshgrid-do,
+grouped by the common filesystems that they share. You may optionally specify a username like in a call to SSH:
 
-	johndoe@node1.host.org
-	jdoe@node2.host.org
-	doejohn@node3.host.org
-	node4.host.org
+	[ Compute Pool 1 ]
+		jdoe@node1.cippool.host.org
+		jdoe@node2.cippool.host.org
+		jdoe@node3.cippool.host.org
+		jdoe@node4.cippool.host.org
+
+	[ Compute Pool 2 ]
+		johndoe@node1.anotherhost.com
+		johndoe@node2.anotherhost.com
+		johndoe@node3.anotherhost.com
 
 =head2 Command files
 
@@ -75,7 +79,7 @@ use File::Basename;
 
 use SSHGrid;
 
-my ($help, $man, $hosts_file, $commands_file, $host_count, $subdirectory);
+my ($help, $man, $hosts_file, $commands_file, $subdirectory);
 
 my $base_directory = "~/.sshgrid";
 my $worker_file = (fileparse(__FILE__))[1] . "../share/SSHGrid/node-bin/sshgrid-worker";
@@ -88,8 +92,6 @@ GetOptions(
 
 		"b|base-directory=s"	=> \$base_directory,
 		"w|worker-file=s"	=> \$worker_file,
-
-		"n|num-hosts=i"		=> \$host_count,
 
 		"help|?"		=> \$help,
 		"man"			=> \$man,
@@ -114,38 +116,50 @@ unless(-f $worker_file) {
 }
 
 my $sshg = SSHGrid->new(
-	HostsSource => {FileSource => $hosts_file},
+	HostsSource => $hosts_file,
 	RemoteRoot => $base_directory,
 );
 
-my $sshg_hc = $sshg->host_count();
+unless(scalar @{$sshg->get_host_sets}) {
+	print STDERR "Did not find any host sets in $hosts_file!\n\n";
+	pod2usage(2);
+}
 
-$host_count = $host_count ? ( $sshg_hc < $host_count ? $sshg_hc : $host_count ) : $sshg_hc;
 
 my $subdir = defined $subdirectory ? $subdirectory : $sshg->get_new_subdir();
 
-
 print STDERR "Uploading SSHGrid base system...\n";
+for my $hostset (@{$sshg->get_host_sets()}) {
+	my $name = $hostset->get_name();
+	my $set_master = $hostset->get_set_master();
 
-# install sshgrid system
-$sshg->upload(
-	Filenames 	=> [$commands_file, $worker_file],
-	Subdir		=> $subdir,
-);
+	print STDERR "\n\t$set_master for '$name':\n";
+
+	# install sshgrid system
+	$sshg->upload(
+		Host		=> $set_master,
+		Filenames 	=> [$worker_file],
+		Subdir		=> $subdir,
+	);
+}
+
+my $master = $sshg->get_host_sets->[0]->get_hosts->[0];
+
+print STDERR "Uploading commands file to master $master...\n";
+system("scp $commands_file $master:$base_directory/sshgrid.commands.sh") or die("Upload failed: $!");
 
 # launch worker scripts on all hosts
 my $worker_name = (fileparse($worker_file))[0];
-my $commands_name = (fileparse($commands_file))[0];
-my $lock_name = "sshgrid.lock";
-my $id_name = "sshgrid.host_ids";
 my $workdir = "$base_directory/$subdir";
 my $hosts = $sshg->hosts;
 
-
 print STDERR "\nLaunching worker processes...\n";
-for(my $hostno=0; $hostno < $host_count; $hostno++) {
-	my $host = $hosts->[$hostno];
-	$sshg->remote_command($host, "( cd $workdir; chmod +x $worker_name; ./$worker_name run $commands_name $lock_name $hostno $host_count $id_name 2>&1 > host-$hostno.log)", 1);
+for my $hostset ($sshg->get_host_sets()) {
+
+	for my $host (@{$hostset->get_hosts()}) {
+		$sshg->remote_command($host, "( cd $workdir; chmod +x $worker_name; ./$worker_name run $master $hostno $host_count 2>&1 > host-$hostno.log)", 1);
+	}
+	
 }
 
 print STDERR "Finished launching SSHGrid workers.\n\n";

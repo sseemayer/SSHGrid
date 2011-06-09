@@ -127,6 +127,6 @@ my $lock_name = "sshgrid.lock";
 my $id_name = "sshgrid.host_ids";
 my $workdir = "$base_directory/$subdirectory";
 my $hosts = $sshg->hosts;
-my $status = $sshg->remote_open($hosts->[0], "( cd $workdir; chmod +x $worker_name; ./$worker_name kill $id_name -$signal 2>&1)");
+my $status = $sshg->remote_open($hosts->[0], "( cd $workdir; chmod +x $worker_name; ./$worker_name kill -$signal 2>&1)");
 
 print $status;

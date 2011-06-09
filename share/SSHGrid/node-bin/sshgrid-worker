@@ -10,23 +10,7 @@ function log {
 
 # pop next task from the queuefile
 function get_next_task {
-	(
-		# get exclusive access to queuefile
-		flock 100
-		
-		linecount=$(wc -l < $queuefile)
-
-		# get first line in queuefile
-		task=$(head -n1 $queuefile);
-		
-		# remove first line, unless special line
-		[[ ${task:0:2} == "#%" ]] || sed -i '1d' $queuefile
-		
-		echo $task
-
-		return $linecount
-
-	) 100>$lockfile
+	ssh $master "bash -c \"(cd $self; $worker_name remote_getwork )\"" 2>/dev/null
 }
 
 # run task
@@ -50,93 +34,15 @@ function host_id {
 	echo -e "`hostname`\t$$\t$hostnumber"
 }
 
-# construct a new barrier
-function barrier_setup {
-
-	barrier_cycle=$(( ! $barrier_cycle ));
-	barrier=$barrier_base.$barrier_cycle
-
-	[ $hostnumber == 0 ] && rm -f $barrier
-	
-	#log "New barrier file is $barrier"
-}
-
-# cleanup a barrier
-function barrier_remove {
-	(
-		# get exclusive access to queuefile
-		flock 100
-
-		# get first line in queuefile
-		task=$(head -n1 $queuefile);
-		
-		# delete first barrier line in queuefile
-		[[ ${task:0:3} == "#%B" ]] && sed -i '1d' $queuefile
-		
-		echo $task
-		
-		rm -f $barrier
-
-	) 100>$lockfile
-
-}
-
-# evaluate barrier waiting condition
-function barrier_waiting {
-
-	[ -f $barrier ] || return 1
-	waitcount=$( (wc -l < $barrier) 2> /dev/null )
-	[[ $waitcount -lt $hostcount ]] || return 2
-	return 0
-
-}
-
-# wait on barrier
-function barrier_wait {
-
-	log "Encountered $barrier"
-	
-	# wait until enough hosts queueing
-	queuecount=$( (wc -l < $barrier) 2>/dev/null )
-	queuecount=$(( $queuecount + 1)) 
-	if [[ $queuecount -ge $hostcount ]]; then
-
-		log "Unlocking $barrier"
-		barrier_remove
-
-	else 
-		log "Waiting on $barrier"
-
-		# queue on the barrier
-		host_id >> $barrier
-		waiting=0
-		while [ $waiting == "0" ]; do
-			sleep $barrier_sleeptime
-			barrier_waiting
-			waiting=$?
-		done
-
-	fi
-
-	log "Passed $barrier"
-
-	barrier_setup
-}
-
-
 # main worker function - run a queuefile
 function worker_run {
 
-	queuefile=$2
-	lockfile=$3
+	worker_name=$2
+	master=$3
 	hostnumber=$4
 	hostcount=$5
-	idfile=$6
 
-	barrier_base=$lockfile.barrier
-	barrier_cycle=1
-	barrier_sleeptime=1
-	barrier_setup
+	idfile=sshgrid.host_ids
 
 	(
 		flock 200
@@ -156,9 +62,6 @@ function worker_run {
 		elif [[ ${next_task:0:3} == "#%B" ]]; then
 			# barrier, wait for other workers
 			barrier_wait
-		else
-			# comment line, ignore it
-			log "Ignored comment $next_task"
 		fi
 
 		next_task=$(get_next_task)
@@ -168,6 +71,23 @@ function worker_run {
 
 }
 
+function worker_remote_getwork {
+
+	queuefile=sshgrid.commands.sh
+	lockfile=sshgrid.commands.lock
+
+	(
+		flock 100
+
+		# get first non-comment line (this can be a barrier, too)
+		sed -nre '/^[^#]|(#%B)/{p;q}' $queuefile
+
+		# comment out first non-comment line
+		sed -i -re '0,/(^[^#])|(^#%B)/s//#&/' $queuefile
+
+	) 100>$lockfile
+
+}
 
 function get_pid_status {
 	hn=$1
@@ -183,8 +103,7 @@ function get_log {
 
 # determine status of worker
 function worker_status {
-	idfile=$2
-
+	idfile=sshgrid.host_ids
 	
 	echo -e "#worker_number\thostname\tpid\tstatus\tlast_log";
 
@@ -211,8 +130,8 @@ function send_kill {
 }
 
 function worker_kill {
-	idfile=$2
-	signal=$3
+	idfile=sshgrid.host_ids
+	signal=$2
 
 	[[ $signal == "" ]] && signal="-SIGKILL"
 
@@ -234,11 +153,13 @@ function worker_kill {
 # first argument tells us what we should do
 do_what=$1
 if [[ $do_what == "run" ]]; then
-	worker_run $@
+	worker_run $0 $@
 elif [[ $do_what == "status" ]]; then
 	worker_status $@
 elif [[ $do_what == "kill" ]]; then
 	worker_kill $@
+elif [[ $do_what == "remote_getwork" ]]; then
+	worker_remote_getwork $@
 else 
 	echo UNKNOWN COMMAND: $do_what >&2
 fi
