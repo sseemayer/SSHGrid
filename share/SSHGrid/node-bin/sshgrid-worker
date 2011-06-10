@@ -2,18 +2,22 @@
 
 # worker script for SSHGrid
 
-# log - echo with host id and timestamp
+queuefile=sshgrid.commands.sh
+lockfile=sshgrid.commands.lock
+idfile=sshgrid.host_ids
+
+barrier_base=sshgrid.barrier
+barrier_sleeptime=5
+
 function log {
 	timestamp=`echo -e "\`date\` ($hostnumber/$hostcount)\t"`
 	echo "${timestamp}$*"
 }
 
-# pop next task from the queuefile
 function get_next_task {
 	ssh $master "bash -c \"(cd $self; $worker_name remote_getwork )\"" 2>/dev/null
 }
 
-# run task
 function execute_task {
 
 	task=$*
@@ -24,17 +28,42 @@ function execute_task {
 	bash -c "$task" || log "WARNING: Failed with exit code $?"
 }
 
-# process task commandline to include more information
 function process_task {
 	task=$( echo $task | sed -e "s/\$hostnumber/$hostnumber/g" )
 }
 
-# identify worker canonically by hostname and pid
 function host_id {
 	echo -e "`hostname`\t$$\t$hostnumber"
 }
 
-# main worker function - run a queuefile
+function barrier_wait {
+
+	log "Encountered barrier number $barrier_number"
+
+	barrier_enter
+	
+	while [[ $waiting == "wait" ]]; do
+		sleep $barrier_sleeptime
+		barrier_waiting
+	done
+
+	log "Passed barrier number $barrier_number"
+
+	barrier_number=$(( $barrier_number + 1 ))
+}
+
+function barrier_enter {
+	hostid=$(host_id)
+	waiting=$( ssh $master "bash -c \"(cd $self; $worker_name remote_barrier_enter $barrier_number $hostid $hostcount\"" 2>/dev/null )
+
+	log "Entering barrier number $barrier_number: $waiting"
+}
+
+function barrier_waiting {
+	hostid=$(host_id)
+	waiting=$( ssh $master "bash -c \"(cd $self; $worker_name remote_barrier_waiting $barrier_number $hostid $hostcount\"" 2>/dev/null)
+}
+
 function worker_run {
 
 	worker_name=$2
@@ -42,7 +71,8 @@ function worker_run {
 	hostnumber=$4
 	hostcount=$5
 
-	idfile=sshgrid.host_ids
+	barrier_number=1
+
 
 	(
 		flock 200
@@ -50,9 +80,10 @@ function worker_run {
 	) 200>$idfile.lock
 
 	log "Started worker on `hostname`, PID $$"
+	log "Master is $master"
 
 	next_task=$(get_next_task)
-	while [ $? != "0" ]; do
+	while [[ $next_task != "" ]]; do
 
 		# determine what line we encountered
 		if [[ ${next_task:0:1} != "#" ]]; then
@@ -73,18 +104,17 @@ function worker_run {
 
 function worker_remote_getwork {
 
-	queuefile=sshgrid.commands.sh
-	lockfile=sshgrid.commands.lock
 
 	(
 		flock 100
 
 		# get first non-comment line (this can be a barrier, too)
-		sed -nre '/^[^#]|(#%B)/{p;q}' $queuefile
+		task=$(sed -nre '/^[^#]|(#%B)/{p;q}' $queuefile)
 
 		# comment out first non-comment line
-		sed -i -re '0,/(^[^#])|(^#%B)/s//#&/' $queuefile
+		[[ ${task:0:3} == "#%B" ]] || sed -i -re '0,/(^[^#])|(^#%B)/s//#&/' $queuefile
 
+		echo $task
 	) 100>$lockfile
 
 }
@@ -101,9 +131,7 @@ function get_log {
 	tail -n1 host-$n.log
 }
 
-# determine status of worker
 function worker_status {
-	idfile=sshgrid.host_ids
 	
 	echo -e "#worker_number\thostname\tpid\tstatus\tlast_log";
 
@@ -120,7 +148,6 @@ function worker_status {
 	
 }
 
-
 function send_kill {
 	host=$1
 	pid=$2
@@ -130,7 +157,6 @@ function send_kill {
 }
 
 function worker_kill {
-	idfile=sshgrid.host_ids
 	signal=$2
 
 	[[ $signal == "" ]] && signal="-SIGKILL"
@@ -149,6 +175,57 @@ function worker_kill {
 
 }
 
+function worker_remote_barrier_enter {
+	barrier_number=$2
+	host_id=$3
+	host_count=$4
+
+	barrier_file=$barrier_base.$barrier_number
+
+	(
+		flock 200
+		echo $host_id >> $barrier_file	
+
+		now_waiting=$(wc -l $barrier_file)
+
+	) 200>$barrier_file
+
+	if [[ $now_waiting -ge $host_count ]]; then
+		
+
+		# we've passed the barrier - remove it from the command file
+
+		(
+			flock 100
+
+			# get first non-comment line (this can be a barrier, too)
+			task=$(sed -nre '/^[^#]|(#%B)/{p;q}' $queuefile)
+
+			# comment out first non-comment line if it is a barrier line
+			[[ ${task:0:3} == "#%B" ]] && sed -i -re '0,/(^[^#])|(^#%B)/s//#&/' $queuefile
+
+			echo $task
+		) 100>$lockfile
+		
+		# send "pass" to the requesting worker
+		echo "pass-first";
+
+
+
+	else 
+		echo "wait";
+	fi
+}
+
+function worker_remote_barrier_waiting {
+	
+	now_waiting=$(wc -l $barrier_file)
+	if [[ $now_waiting -ge $host_count ]]; then
+		echo "pass";
+	else 
+		echo "wait";
+	fi
+}
 
 # first argument tells us what we should do
 do_what=$1
@@ -158,8 +235,14 @@ elif [[ $do_what == "status" ]]; then
 	worker_status $@
 elif [[ $do_what == "kill" ]]; then
 	worker_kill $@
+
 elif [[ $do_what == "remote_getwork" ]]; then
 	worker_remote_getwork $@
+elif [[ $do_what == "remote_barrier_enter" ]]; then
+	worker_remote_barrier_enter $@
+elif [[ $do_what == "remote_barrier_waiting" ]]; then
+	worker_remote_barrier_waiting $@
+
 else 
 	echo UNKNOWN COMMAND: $do_what >&2
 fi

@@ -54,6 +54,17 @@ sub get_host_sets {
 	return $self->{hostsets};
 }
 
+sub get_total_host_count {
+	my ($self) = @_;
+
+	my $count=0;
+	for my $hs (@{$self->{hostsets}}) {
+		$count += $hs->get_host_count();
+	}
+
+	return $count;
+}
+
 sub get_new_subdir {
 	my $self = shift;
 	

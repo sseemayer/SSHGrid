@@ -44,7 +44,7 @@ sub load_hostfile {
 		if($line =~ m/^\[\s*(?<groupname>(?:\w|\s|[()*!.,;+-])+)\s*\]\s*$/) {
 			# [GROUPNAME]
 			if(@current_hosts) {
-				push @hostsets, SSHGrid::HostSet->new(Name => \$current_groupname, Hosts => \@current_hosts);
+				push @hostsets, SSHGrid::HostSet->new(Name => $current_groupname, Hosts => \@current_hosts);
 			}
 
 			$current_groupname = $+{'groupname'};
@@ -65,7 +65,7 @@ sub load_hostfile {
 
 	# add last group
 	if(@current_hosts) {
-		push @hostsets, SSHGrid::HostSet->new(Name => \$current_groupname, Hosts => \@current_hosts);
+		push @hostsets, SSHGrid::HostSet->new(Name => $current_groupname, Hosts => \@current_hosts);
 	}
 	close(HF);
 	return \@hostsets;
@@ -80,6 +80,11 @@ sub get_name {
 sub get_hosts {
 	my ($self) = @_;
 	return $self->{parameters}->{Hosts};
+}
+
+sub get_host_count {
+	my ($self) = @_;
+	return scalar @{$self->get_hosts};
 }
 
 sub get_set_master {
