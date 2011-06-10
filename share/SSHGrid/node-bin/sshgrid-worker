@@ -9,13 +9,22 @@ idfile=sshgrid.host_ids
 barrier_base=sshgrid.barrier
 barrier_sleeptime=5
 
+self="${BASH_SOURCE[0]}";
+if ([ -h "${self}" ]) then
+	  while([ -h "${self}" ]) do self=`readlink "${self}"`; done
+fi
+pushd . > /dev/null
+cd `dirname ${self}` > /dev/null
+self=`pwd`;
+popd  > /dev/null
+
 function log {
 	timestamp=`echo -e "\`date\` ($hostnumber/$hostcount)\t"`
 	echo "${timestamp}$*"
 }
 
 function get_next_task {
-	ssh $master "bash -c \"(cd $self; $worker_name remote_getwork )\"" 2>/dev/null
+	ssh $master "bash -c \"(cd $self; $worker_name remote_getwork )\"" #2>/dev/null
 }
 
 function execute_task {
@@ -66,7 +75,7 @@ function barrier_waiting {
 
 function worker_run {
 
-	worker_name=$2
+	worker_name=$1
 	master=$3
 	hostnumber=$4
 	hostcount=$5
@@ -80,7 +89,9 @@ function worker_run {
 	) 200>$idfile.lock
 
 	log "Started worker on `hostname`, PID $$"
-	log "Master is $master"
+	log "\$worker_name is $worker_name"
+	log "\$master is $master"
+	log "\$self is $self"
 
 	next_task=$(get_next_task)
 	while [[ $next_task != "" ]]; do
