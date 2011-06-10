@@ -23,9 +23,6 @@ function log {
 	echo "${timestamp}$*"
 }
 
-function get_next_task {
-	ssh $master "bash -c \"(cd $self; $worker_name remote_getwork )\"" #2>/dev/null
-}
 
 function execute_task {
 
@@ -50,7 +47,12 @@ function barrier_wait {
 	log "Encountered barrier number $barrier_number"
 
 	barrier_enter
-	
+
+	[[ $waiting == "wait" ]] || [[ $waiting == "pass-first" ]] || {
+		log Unsupported answer: $waiting
+		exit 100
+	}
+
 	while [[ $waiting == "wait" ]]; do
 		sleep $barrier_sleeptime
 		barrier_waiting
@@ -61,16 +63,20 @@ function barrier_wait {
 	barrier_number=$(( $barrier_number + 1 ))
 }
 
-function barrier_enter {
-	hostid=$(host_id)
-	waiting=$( ssh $master "bash -c \"(cd $self; $worker_name remote_barrier_enter $barrier_number $hostid $hostcount\"" 2>/dev/null )
+function get_next_task {
+	ssh $master "bash -c \"(cd $self; $worker_name remote_getwork )\"" #2>/dev/null
+}
 
-	log "Entering barrier number $barrier_number: $waiting"
+function barrier_enter {
+	host_name=$( hostname )
+	waiting=$( ssh $master "bash -c \"cd $self; $worker_name remote_barrier_enter $barrier_number $host_name $hostnumber $hostcount\"" )
+
+	log "Entering barrier number $barrier_number - response: '$waiting'"
 }
 
 function barrier_waiting {
-	hostid=$(host_id)
-	waiting=$( ssh $master "bash -c \"(cd $self; $worker_name remote_barrier_waiting $barrier_number $hostid $hostcount\"" 2>/dev/null)
+	host_name=$( hostname )
+	waiting=$( ssh $master "bash -c \"cd $self; $worker_name remote_barrier_waiting $barrier_number $host_name $hostnumber $hostcount\"" )
 }
 
 function worker_run {
@@ -120,7 +126,7 @@ function worker_remote_getwork {
 		flock 100
 
 		# get first non-comment line (this can be a barrier, too)
-		task=$(sed -nre '/^[^#]|(#%B)/{p;q}' $queuefile)
+		task=$(sed -nre '/(^[^#])|(^#%B)/{p;q}' $queuefile)
 
 		# comment out first non-comment line
 		[[ ${task:0:3} == "#%B" ]] || sed -i -re '0,/(^[^#])|(^#%B)/s//#&/' $queuefile
@@ -188,54 +194,62 @@ function worker_kill {
 
 function worker_remote_barrier_enter {
 	barrier_number=$2
-	host_id=$3
-	host_count=$4
+	host_name=$3
+	host_number=$4
+	host_count=$5
 
 	barrier_file=$barrier_base.$barrier_number
 
 	(
 		flock 200
-		echo $host_id >> $barrier_file	
+		echo -e "$host_name\t$host_number" >> $barrier_file	
 
-		now_waiting=$(wc -l $barrier_file)
+		now_waiting=$(wc -l < $barrier_file)
+	
+		if [[ $now_waiting -ge $host_count ]]; then
+			
+			# we've passed the barrier - remove it from the command file
+			(
+				flock 100
 
-	) 200>$barrier_file
+				# get first non-comment line (this can be a barrier, too)
+				task=$(sed -nre '/(^[^#])|(^#%B)/{p;q}' $queuefile)
 
-	if [[ $now_waiting -ge $host_count ]]; then
-		
+				# comment out first non-comment line if it is a barrier line
+				[[ ${task:0:3} == "#%B" ]] && sed -i -re '0,/(^[^#])|(^#%B)/s//#&/' $queuefile
 
-		# we've passed the barrier - remove it from the command file
+			) 100>$lockfile
+			
+			# send "pass-first" to the requesting worker
+			echo "pass-first";
 
-		(
-			flock 100
+		else
+			# not enough workers waiting. This one should work, too
+			echo "wait";
+		fi
 
-			# get first non-comment line (this can be a barrier, too)
-			task=$(sed -nre '/^[^#]|(#%B)/{p;q}' $queuefile)
+	) 200>>$barrier_file 
 
-			# comment out first non-comment line if it is a barrier line
-			[[ ${task:0:3} == "#%B" ]] && sed -i -re '0,/(^[^#])|(^#%B)/s//#&/' $queuefile
-
-			echo $task
-		) 100>$lockfile
-		
-		# send "pass" to the requesting worker
-		echo "pass-first";
-
-
-
-	else 
-		echo "wait";
-	fi
 }
 
 function worker_remote_barrier_waiting {
-	
-	now_waiting=$(wc -l $barrier_file)
-	if [[ $now_waiting -ge $host_count ]]; then
-		echo "pass";
-	else 
-		echo "wait";
-	fi
+	barrier_number=$2
+	host_name=$3
+	host_number=$4
+	host_count=$5
+
+	barrier_file=$barrier_base.$barrier_number
+
+	(
+		flock 200
+
+		now_waiting=$(wc -l < $barrier_file)
+		if [[ $now_waiting -ge $host_count ]]; then
+			echo "pass";
+		else 
+			echo "wait";
+		fi
+	) 200>>$barrier_file
 }
 
 # first argument tells us what we should do
